@@ -26,7 +26,7 @@ def generate_response(query):
     # 2. Extract content and metadata
     context_entries = []
     for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
-        context_entries.append(f"Source: {meta['source']}\nContent: {doc}")
+        context_entries.append(f"SOURCE: {meta['source']}\nCONTENT: {doc}")
     
     context_text = "\n\n---\n\n".join(context_entries)
     
@@ -57,19 +57,72 @@ def generate_response(query):
     DETECTIVE'S RESPONSE:
     """
     
-    # 5. Generate response using Gemini
+    
     try:
+        if not os.getenv("GOOGLE_API_KEY"):
+            return "DETECTIVE LOG: I need a valid GOOGLE_API_KEY to start the investigation. Please set it in your environment and restart the server."
+            
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         answer = response.text.strip()
         
-        # Update history
+
         conversation_history.append({"role": "user", "content": query})
         conversation_history.append({"role": "assistant", "content": answer})
         
         return answer
     except Exception as e:
         return f"Error connecting to Gemini API: {e}"
+
+def extract_timeline():
+    """
+    Reads all text files in the evidence folder and uses Gemini to 
+    extract a chronological timeline of events.
+    """
+    evidence_dir = "evidence"
+    all_content = []
+    
+    if not os.path.exists(evidence_dir):
+        return []
+
+    for filename in os.listdir(evidence_dir):
+        if filename.endswith(".txt"):
+            with open(os.path.join(evidence_dir, filename), 'r') as f:
+                all_content.append(f"Source: {filename}\nContent: {f.read()}")
+
+    context_text = "\n\n---\n\n".join(all_content)
+    
+    prompt = f"""
+    Review the following cold case evidence and extract a chronological timeline of events.
+    For each event, provide:
+    1. A precise timestamp/date (as mentioned in the text).
+    2. A brief description of the event.
+    3. The source file name.
+    
+    EVIDENCE:
+    {context_text}
+    
+    Format your response as a valid JSON list of objects like this:
+    [
+      {{"time": "2023-10-14 21:00", "event": "Man in dark hoodie seen running", "source": "witness_sarah.txt"}},
+      ...
+    ]
+    Sort the events from oldest to newest. Return ONLY the JSON.
+    """
+    
+    try:
+        if not os.getenv("GOOGLE_API_KEY"):
+            return []
+            
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        # Clean potential markdown wrapping
+        json_text = response.text.strip().replace('```json', '').replace('```', '')
+        import json
+        return json.loads(json_text)
+    except Exception as e:
+        print(f"Error extracting timeline: {e}")
+        return []
 
 def chat_loop():
     print("--- Cold Case Detective Chatbot (With Memory) ---")

@@ -27,15 +27,28 @@ class ChatResponse(BaseModel):
 def read_root():
     return {"status": "Detective API is running"}
 
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "api_key_set": bool(os.getenv("GOOGLE_API_KEY"))}
+
+@app.get("/timeline")
+async def get_timeline():
+    try:
+        events = chatbot.extract_timeline()
+        return {"timeline": events}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     try:
         # Get response using the logic in chatbot.py
-        # chatbot.generate_response handles history internally (for the terminal loop),
-        # but for the API, we'll keep it simple for now or extend chatbot.py to be more modular.
         response_text = chatbot.generate_response(request.message)
         
-        # We also want to provide the raw sources for the Case Board
+        # Determine if it's an error message or a real response
+        # If it's an error, we still want to show it in the chat
+        
+        # Get raw sources for the Case Board
         results = blind_search(request.message, n_results=3)
         sources = []
         for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
@@ -46,7 +59,11 @@ async def chat_endpoint(request: ChatRequest):
             
         return ChatResponse(response=response_text, sources=sources)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Instead of 500, return a clear message in the chat
+        return ChatResponse(
+            response=f"SYSTEM ERROR: {str(e)}",
+            sources=[]
+        )
 
 if __name__ == "__main__":
     import uvicorn

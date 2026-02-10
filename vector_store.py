@@ -76,11 +76,8 @@ if __name__ == "__main__":
     raw_results = blind_search(query)
     
     # Verify the structure is what we expect
-    print("\n--- Raw Result from Vector Store ---")
-    import json
-    # Chroma returns lists of lists for multiple queries, we only sent one query
-    output = {
-        "document": raw_results['documents'][0][0],
-        "metadata": raw_results['metadatas'][0][0]
-    }
-    print(json.dumps(output, indent=2))
+    print("\n--- Similarity Search Result ---")
+    results = blind_search(query)
+    for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
+        print(f"Source: {meta['source']}")
+        print(f"Text: {doc}")
