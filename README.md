@@ -21,7 +21,21 @@ rag-cold-case-detective/
 └── vector_store.pkl    ← Persistent vector store
 ```
 
-## Setup
+## Quick Start (Reliable Method) 🚀
+
+We have included a startup script to make running the project easy and robust.
+
+1.  **Run the App:**
+    ```bash
+    ./run_app.sh
+    ```
+    *This script will automatically clear old processes, start the Python backend, and launch the React frontend.*
+
+2.  **Access:**
+    - Frontend: [http://localhost:5173](http://localhost:5173)
+    - Backend: [http://localhost:8000](http://localhost:8000)
+
+## Manual Setup (If needed)
 
 1. **Install Dependencies**:
    ```bash

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Search, FileText, Pin, Cpu, MessageSquare, Clock, RefreshCw } from 'lucide-react';
+import { Send, Search, FileText, Pin, Cpu, MessageSquare, Clock, RefreshCw, Upload } from 'lucide-react';
 import './App.css';
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -18,7 +18,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeView, setActiveView] = useState('board');
   const [serverStatus, setServerStatus] = useState('connecting');
+  const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -76,6 +78,38 @@ function App() {
     }
   };
 
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.type !== 'text/plain') {
+      alert("Only .txt files are allowed for evidence.");
+      return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      await axios.post(`${API_BASE_URL}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      setMessages(prev => [...prev, { role: 'assistant', content: `Securely uploaded and indexed: ${file.name}` }]);
+      fetchCases();
+      fetchTimeline();
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Upload failed: ${error.message}` }]);
+    } finally {
+      setIsUploading(false);
+      // Reset input so same file can be selected again if needed
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -128,6 +162,24 @@ function App() {
             <RefreshCw size={14} className={isLoading ? "spin" : ""} />
             Sync Evidence
           </button>
+
+          <div style={{ marginTop: '8px' }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              accept=".txt"
+              onChange={handleFileUpload}
+            />
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="sync-btn"
+              style={{ borderColor: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)' }}
+            >
+              <Upload size={14} className={isUploading ? "spin" : ""} />
+              {isUploading ? 'Uploading...' : 'Upload Evidence'}
+            </button>
+          </div>
         </div>
 
         <div className="sidebar-content">

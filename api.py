@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import rag_chat
 from ingest import ingest_evidence
 from vector_store import build_vector_store, blind_search
 import os
+import shutil
 
 app = FastAPI()
 
@@ -38,6 +39,24 @@ async def ingest_endpoint():
         data = ingest_evidence("evidence")
         build_vector_store(data)
         return {"status": "success", "message": f"Ingested {len(data)} evidence chunks"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    if not file.filename.endswith(".txt"):
+         raise HTTPException(status_code=400, detail="Only .txt files are allowed")
+    
+    file_location = os.path.join("evidence", file.filename)
+    try:
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Auto-ingest after upload
+        data = ingest_evidence("evidence")
+        build_vector_store(data)
+        
+        return {"status": "success", "message": f"File '{file.filename}' uploaded and indexed."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
