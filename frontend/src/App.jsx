@@ -8,14 +8,16 @@ const API_BASE_URL = 'http://localhost:8000';
 
 function App() {
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Welcome, Detective. The evidence files are loaded. What's on your mind regarding Case 2023-CF-992?" }
+    { role: 'assistant', content: "Detective Archive initialized. Select a case to begin your investigation." }
   ]);
   const [input, setInput] = useState('');
   const [sources, setSources] = useState([]);
   const [timeline, setTimeline] = useState([]);
+  const [cases, setCases] = useState([]);
+  const [selectedCase, setSelectedCase] = useState('All');
   const [isLoading, setIsLoading] = useState(false);
-  const [activeView, setActiveView] = useState('board'); // 'board' or 'timeline'
-  const [serverStatus, setServerStatus] = useState('connecting'); // 'connected', 'error', 'connecting'
+  const [activeView, setActiveView] = useState('board');
+  const [serverStatus, setServerStatus] = useState('connecting');
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -26,12 +28,21 @@ function App() {
 
   useEffect(() => {
     checkHealth();
+    fetchCases();
     fetchTimeline();
 
-    // Poll health every 10 seconds
     const interval = setInterval(checkHealth, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const fetchCases = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/cases`);
+      setCases(response.data.cases);
+    } catch (error) {
+      console.error('Error fetching cases:', error);
+    }
+  };
 
   const checkHealth = async () => {
     try {
@@ -55,6 +66,7 @@ function App() {
     setIsLoading(true);
     try {
       await axios.post(`${API_BASE_URL}/ingest`);
+      fetchCases();
       fetchTimeline();
       setMessages(prev => [...prev, { role: 'assistant', content: 'Case files updated. I have indexed the new evidence.' }]);
     } catch (error) {
@@ -86,7 +98,6 @@ function App() {
         return unique.slice(0, 9);
       });
 
-      // Refresh timeline after each query in case new details were found (though currently static)
       fetchTimeline();
     } catch (error) {
       console.error('Error calling API:', error);
@@ -97,139 +108,227 @@ function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className="layout-root noir-theme">
       <div className="bg-mesh" />
 
-      {/* Sidebar: Chat */}
-      <aside className="sidebar glass">
-        <div className="chat-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexGrow: 1 }}>
-            <Cpu className="text-accent-blue" size={24} />
-            <h2>Detective AI</h2>
+      {/* Case Archive Sidebar */}
+      <aside className="sidebar-archive glass">
+        <div className="sidebar-header">
+          <div className="brand-group">
+            <div className="icon-box">
+              <Clock className="accent-blue" size={20} />
+            </div>
+            <h2 className="brand-title">Archives</h2>
           </div>
-          <div className="status-indicator" title={`Server Status: ${serverStatus}`}>
-            <span className={`status-dot ${serverStatus}`} />
-            <span className="status-text">{serverStatus}</span>
-          </div>
-          <button className="refresh-btn glow-hover" onClick={handleIngest} title="Re-ingest Evidence">
-            <RefreshCw size={14} />
+
+          <button
+            onClick={handleIngest}
+            className="sync-btn"
+          >
+            <RefreshCw size={14} className={isLoading ? "spin" : ""} />
+            Sync Evidence
           </button>
         </div>
 
-        <div className="chat-messages" ref={scrollRef}>
-          <AnimatePresence>
-            {messages.map((msg, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`message ${msg.role}`}
+        <div className="sidebar-content">
+          <p className="section-label">Active Investigations</p>
+          <div className="case-list">
+            {['All', ...cases].map(caseName => (
+              <button
+                key={caseName}
+                onClick={() => setSelectedCase(caseName)}
+                className={`case-item ${selectedCase === caseName ? 'active' : ''}`}
               >
-                {msg.content}
-              </motion.div>
+                <div className="case-dot" />
+                <span className="case-name">{caseName}</span>
+              </button>
             ))}
-          </AnimatePresence>
-          {isLoading && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="message assistant">
-              Searching files...
-            </motion.div>
-          )}
-        </div>
-
-        <div className="chat-input-container">
-          <input
-            type="text"
-            className="chat-input"
-            placeholder="Search evidence..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-          />
-          <button className="send-btn glow-hover" onClick={handleSend} disabled={isLoading}>
-            <Send size={18} />
-          </button>
+          </div>
         </div>
       </aside>
 
-      {/* Main Area: Case Board / Timeline */}
-      <main className="main-board glass">
-        <header className="board-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>
-                {activeView === 'board' ? 'Case Board' : "Detective's Timeline"}
-              </h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Active Case: The Warehouse Incident</p>
+      {/* Main Board Area */}
+      <main className="main-viewport">
+        <header className="viewport-header">
+          <div className="viewport-title-group">
+            <div className="eyebrow">
+              <span className="line" />
+              Intelligence Dashboard
             </div>
+            <h1 className="viewport-title">
+              {activeView === 'board' ? 'The War Board' : 'Timeline Evidence'}
+            </h1>
+            <p className="viewport-subtitle">Viewing investigation: <span className="highlight">{selectedCase}</span></p>
+          </div>
 
-            <div className="view-toggle">
-              <button
-                className={`toggle-btn ${activeView === 'board' ? 'active' : ''}`}
-                onClick={() => setActiveView('board')}
-              >
-                Board
-              </button>
-              <button
-                className={`toggle-btn ${activeView === 'timeline' ? 'active' : ''}`}
-                onClick={() => setActiveView('timeline')}
-              >
-                Timeline
-              </button>
-            </div>
+          <div className="view-selector">
+            <button
+              onClick={() => setActiveView('board')}
+              className={`selector-btn ${activeView === 'board' ? 'active' : ''}`}
+            >
+              Board View
+            </button>
+            <button
+              onClick={() => setActiveView('timeline')}
+              className={`selector-btn ${activeView === 'timeline' ? 'active' : ''}`}
+            >
+              Historical
+            </button>
           </div>
         </header>
 
-        <div className="board-grid">
+        <div className="viewport-content">
           {activeView === 'board' ? (
-            sources.length === 0 ? (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px', color: 'var(--text-secondary)' }}>
-                <FileText size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
-                <p>Ask a question to pin evidence to the board.</p>
-              </div>
-            ) : (
-              <AnimatePresence mode="popLayout">
-                {sources.map((src, i) => (
-                  <motion.div
-                    key={src.source}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ scale: 1.02 }}
-                    className="evidence-card glass glow-hover"
-                  >
-                    <div className="pin" />
-                    <span className="card-tag">{src.source.replace('.txt', '').replace('_', ' ')}</span>
-                    <h3 className="card-title">Evidence File</h3>
-                    <p className="card-content">{src.content.substring(0, 150)}...</p>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            )
+            <div className="board-container">
+              {sources.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">
+                    <Search size={32} />
+                  </div>
+                  <p className="empty-title">No intelligence pinned.</p>
+                  <p className="empty-desc">Initiate a query in the archive to populate the board.</p>
+                </div>
+              ) : (
+                <div className="board-grid">
+                  <AnimatePresence mode="popLayout">
+                    {sources.map((src, i) => (
+                      <motion.div
+                        key={src.source}
+                        layout
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        className="intel-card"
+                      >
+                        <div className="card-pin">
+                          <Pin size={14} />
+                        </div>
+
+                        <div className="card-label">
+                          <FileText size={12} />
+                          {src.source.replace('.txt', '').replace(/_/g, ' ')}
+                        </div>
+
+                        <h3 className="card-heading">Intelligence Segment</h3>
+                        <p className="card-body">
+                          "{src.content}"
+                        </p>
+
+                        <div className="card-footer">
+                          <span className="ref-code">REF: {Math.random().toString(36).substr(2, 6).toUpperCase()}</span>
+                          <div className="deco-dots">
+                            <div className="dot" />
+                            <div className="dot" />
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
           ) : (
-            <div className="timeline-container" style={{ gridColumn: '1/-1' }}>
-              <AnimatePresence>
-                {timeline.map((item, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="timeline-item"
-                  >
-                    <div className="timeline-marker" />
-                    <div className="timeline-connector" />
-                    <div className="timeline-content">
-                      <div className="timeline-time">{item.time}</div>
-                      <div className="timeline-event">{item.event}</div>
-                      <div className="timeline-source">Source: {item.source}</div>
+            <div className="timeline-view">
+              {timeline.map((item, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="timeline-row"
+                >
+                  <div className="time-col">
+                    <span className="time-stamp">{item.time}</span>
+                  </div>
+                  <div className="node-col">
+                    <div className="node-dot" />
+                    <div className="node-line" />
+                  </div>
+                  <div className="detail-col">
+                    <div className="timeline-card">
+                      <p className="event-desc">{item.event}</p>
+                      <div className="event-meta">
+                        <Pin size={10} /> {item.source}
+                      </div>
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           )}
         </div>
       </main>
+
+      {/* Chat Sidebar */}
+      <aside className="sidebar-chat">
+        <header className="chat-header">
+          <div className="detective-profile">
+            <div className="profile-icon">
+              <Cpu className="accent-blue" size={20} />
+            </div>
+            <div className="profile-info">
+              <h2 className="profile-name">Detective Core</h2>
+              <div className="status-indicator">
+                <div className={`status-dot ${serverStatus}`} />
+                <span className="status-label">{serverStatus}</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="chat-body" ref={scrollRef}>
+          <AnimatePresence>
+            {messages.map((msg, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className={`msg-wrapper ${msg.role}`}
+              >
+                <div className="msg-bubble">
+                  {msg.content}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          {isLoading && (
+            <div className="loading-state">
+              <div className="dot-group">
+                {[0, 1, 2].map(d => (
+                  <motion.div
+                    key={d}
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ repeat: Infinity, duration: 1, delay: d * 0.2 }}
+                    className="loading-dot"
+                  />
+                ))}
+              </div>
+              Scanning intel...
+            </div>
+          )}
+        </div>
+
+        <footer className="chat-footer">
+          <div className="input-group">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Query the database..."
+              className="chat-input"
+            />
+            <button
+              onClick={handleSend}
+              disabled={isLoading || !input.trim()}
+              className="send-btn"
+            >
+              <Send size={16} />
+            </button>
+          </div>
+          <p className="footer-tag">
+            Confidential Evidence Analysis System v2.0
+          </p>
+        </footer>
+      </aside>
     </div>
   );
 }
