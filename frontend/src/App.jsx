@@ -19,6 +19,7 @@ function App() {
   const [activeView, setActiveView] = useState('board');
   const [serverStatus, setServerStatus] = useState('connecting');
   const [isUploading, setIsUploading] = useState(false);
+  const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -32,10 +33,11 @@ function App() {
     checkHealth();
     fetchCases();
     fetchTimeline();
+    if (activeView === 'trace') fetchTrace();
 
     const interval = setInterval(checkHealth, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedCase, activeView]);
 
   const fetchCases = async () => {
     try {
@@ -57,10 +59,19 @@ function App() {
 
   const fetchTimeline = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/timeline`);
+      const response = await axios.get(`${API_BASE_URL}/timeline?case_id=${selectedCase}`);
       setTimeline(response.data.timeline);
     } catch (error) {
       console.error('Error fetching timeline:', error);
+    }
+  };
+
+  const fetchTrace = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/trace?case_id=${selectedCase}`);
+      setGraphData(response.data);
+    } catch (error) {
+      console.error('Error fetching trace:', error);
     }
   };
 
@@ -226,6 +237,12 @@ function App() {
             >
               Historical
             </button>
+            <button
+              onClick={() => setActiveView('trace')}
+              className={`selector-btn ${activeView === 'trace' ? 'active' : ''}`}
+            >
+              Trace
+            </button>
           </div>
         </header>
 
@@ -278,7 +295,7 @@ function App() {
                 </div>
               )}
             </div>
-          ) : (
+          ) : activeView === 'timeline' ? (
             <div className="timeline-view">
               {timeline.map((item, i) => (
                 <motion.div
@@ -305,12 +322,49 @@ function App() {
                 </motion.div>
               ))}
             </div>
+          ) : (
+            <div className="trace-container glass">
+              <h3 className="trace-status">Network Analysis: {graphData.nodes.length} Nodes Active</h3>
+              <div className="trace-graph">
+                {graphData.nodes.map((node, i) => {
+                  const isRoot = node.type === 'root';
+                  const angle = (i / graphData.nodes.length) * 2 * Math.PI;
+                  const radius = isRoot ? 0 : 200 + (Math.random() * 50);
+                  const x = isRoot ? 50 : 50 + (Math.cos(angle) * 35);
+                  const y = isRoot ? 50 : 50 + (Math.sin(angle) * 35);
+
+                  return (
+                    <motion.div
+                      key={node.id}
+                      className={`trace-node ${node.type}`}
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1, left: `${x}%`, top: `${y}%` }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <div className="node-icon">
+                        {node.type === 'root' ? <Search size={16} /> : <FileText size={12} />}
+                      </div>
+                      <span className="node-label">{node.label.replace('.txt', '')}</span>
+                    </motion.div>
+                  );
+                })}
+
+                <svg className="trace-links">
+                  {/* Decorative circles */}
+                  <circle cx="50%" cy="50%" r="20%" stroke="rgba(59, 130, 246, 0.1)" strokeWidth="1" fill="none" />
+                  <circle cx="50%" cy="50%" r="35%" stroke="rgba(59, 130, 246, 0.1)" strokeWidth="1" fill="none" />
+                </svg>
+              </div>
+              <div className="trace-overlay">
+                <p>RELATIONSHIP MATRIX GENERATED</p>
+              </div>
+            </div>
           )}
         </div>
       </main>
 
       {/* Chat Sidebar */}
-      <aside className="sidebar-chat">
+      < aside className="sidebar-chat" >
         <header className="chat-header">
           <div className="detective-profile">
             <div className="profile-icon">
@@ -380,8 +434,8 @@ function App() {
             Confidential Evidence Analysis System v2.0
           </p>
         </footer>
-      </aside>
-    </div>
+      </aside >
+    </div >
   );
 }
 

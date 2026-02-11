@@ -60,14 +60,6 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/cases")
-async def get_cases():
-    """
-    Returns a list of unique cases detected in the evidence files.
-    """
-    evidence_dir = "evidence"
-    if not os.path.exists(evidence_dir):
-        return {"cases": []}
     
     cases = set()
     for filename in os.listdir(evidence_dir):
@@ -94,6 +86,69 @@ async def get_timeline(case_id: str = None):
         return {"timeline": timeline}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/trace")
+async def get_trace(case_id: str = "All"):
+    """
+    Generates a network graph (nodes/links) for the selected case.
+    """
+    evidence_dir = "evidence"
+    if not os.path.exists(evidence_dir):
+        return {"nodes": [], "links": []}
+
+    nodes = []
+    links = []
+    
+    # 1. Central Node (The Case)
+    root_id = "CASE_ROOT"
+    nodes.append({"id": root_id, "label": case_id if case_id != "All" else "Master Archive", "type": "root"})
+
+    files_processed = 0
+
+    for filename in os.listdir(evidence_dir):
+        if not filename.endswith(".txt"):
+            continue
+            
+        file_path = os.path.join(evidence_dir, filename)
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+                # Check if file belongs to case
+                is_relevant = False
+                if case_id == "All":
+                    is_relevant = True
+                elif f"Case: {case_id}" in content or f"Case ID: {case_id}" in content:
+                    is_relevant = True
+                # Fallback: if filename contains case name (simplified)
+                elif case_id.lower().split()[0] in filename.lower(): 
+                   is_relevant = True
+                
+                if is_relevant:
+                    file_node_id = f"FILE_{filename}"
+                    nodes.append({"id": file_node_id, "label": filename, "type": "file"})
+                    links.append({"source": root_id, "target": file_node_id})
+                    
+                    # Extract simple entities (Capitalized words - naive NER)
+                    # This adds "flavor" to the graph without complex NLP
+                    words = set()
+                    for word in content.split():
+                        if word[0].isupper() and len(word) > 4:
+                            clean_word = word.strip(".,:;\"'")
+                            if clean_word not in ["Case", "Date", "Time", "Report", "Evidence"]:
+                                words.add(clean_word)
+                    
+                    # Limit to 3 key entities per file to avoid clutter
+                    for i, entity in enumerate(list(words)[:3]):
+                        entity_id = f"ENT_{entity}_{filename}"
+                        nodes.append({"id": entity_id, "label": entity, "type": "entity"})
+                        links.append({"source": file_node_id, "target": entity_id})
+                        
+        except Exception as e:
+            print(f"Error reading {filename}: {e}")
+            continue
+
+    return {"nodes": nodes, "links": links}
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
