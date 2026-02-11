@@ -38,6 +38,16 @@ rag-cold-case-detective/
    - To ingest and test search: `python vector_store.py`
    - To start the RAG chat: `python rag_chat.py`
 
+## Adding New Evidence
+
+The system is designed to handle multiple documents and incidents easily:
+
+1. **Place Evidence**: Add any case-related `.txt` files into the `evidence/` directory.
+2. **Re-Ingest**: 
+   - **Via UI**: Click the **Refresh** button in the chat sidebar.
+   - **Via Command Line**: Run `python vector_store.py`.
+3. **Ask**: The detective will now include the new files in its search and citations.
+
 ## Example Query
 
 **Question**: "What evidence confirms the car color?"

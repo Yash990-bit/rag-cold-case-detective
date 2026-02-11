@@ -42,10 +42,12 @@ Question:
     """
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
+        if "429" in str(e):
+            return "DETECTIVE LOG: I've hit the Gemini rate limit. Please wait a minute before asking another question."
         return f"Error: {e}"
 
 def extract_timeline():
@@ -85,7 +87,7 @@ def extract_timeline():
     """
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
         # Clean potential markdown wrapping
         json_text = response.text.strip().replace('```json', '').replace('```', '')
@@ -109,11 +111,6 @@ def main():
         print(f"\nFinal Answer: {answer}\n")
 
 if __name__ == "__main__":
-    # For testing the specific requirement:
-    # Query: "What evidence confirms the car color?"
-    print("Testing specific query: 'What evidence confirms the car color?'")
-    test_answer = generate_response("What evidence confirms the car color?")
-    print(f"Answer: {test_answer}\n")
-    
-    # Uncomment to run the interactive loop
+    # The interactive loop is disabled by default for the API server
     # main()
+    pass

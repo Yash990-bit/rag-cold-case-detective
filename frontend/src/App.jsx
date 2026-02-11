@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Search, FileText, Pin, Cpu, MessageSquare, Clock } from 'lucide-react';
+import { Send, Search, FileText, Pin, Cpu, MessageSquare, Clock, RefreshCw } from 'lucide-react';
 import './App.css';
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -48,6 +48,19 @@ function App() {
       setTimeline(response.data.timeline);
     } catch (error) {
       console.error('Error fetching timeline:', error);
+    }
+  };
+
+  const handleIngest = async () => {
+    setIsLoading(true);
+    try {
+      await axios.post(`${API_BASE_URL}/ingest`);
+      fetchTimeline();
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Case files updated. I have indexed the new evidence.' }]);
+    } catch (error) {
+      console.error('Error re-ingesting:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -98,6 +111,9 @@ function App() {
             <span className={`status-dot ${serverStatus}`} />
             <span className="status-text">{serverStatus}</span>
           </div>
+          <button className="refresh-btn glow-hover" onClick={handleIngest} title="Re-ingest Evidence">
+            <RefreshCw size={14} />
+          </button>
         </div>
 
         <div className="chat-messages" ref={scrollRef}>

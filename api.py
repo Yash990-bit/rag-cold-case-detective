@@ -2,12 +2,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import rag_chat
-from vector_store import blind_search
+from ingest import ingest_evidence
+from vector_store import build_vector_store, blind_search
 import os
 
 app = FastAPI()
 
-# Enable CORS for frontend development
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,6 +31,15 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "api_key_set": bool(os.getenv("GOOGLE_API_KEY"))}
+
+@app.post("/ingest")
+async def ingest_endpoint():
+    try:
+        data = ingest_evidence("evidence")
+        build_vector_store(data)
+        return {"status": "success", "message": f"Ingested {len(data)} evidence chunks"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/timeline")
 async def get_timeline():
