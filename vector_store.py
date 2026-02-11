@@ -1,12 +1,22 @@
-import faiss
-import numpy as np
-from sentence_transformers import SentenceTransformer
+
+
 from ingest import ingest_evidence
 import os
 import pickle
 
-# Initialize the embedding model
-model = SentenceTransformer("all-MiniLM-L6-v2")
+# Global variable for the model, initially None
+_model = None
+
+def get_model():
+    """
+    Lazy loads the SentenceTransformer model.
+    """
+    global _model
+    if _model is None:
+        print("Loading embedding model...")
+        from sentence_transformers import SentenceTransformer
+        _model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _model
 
 def build_vector_store(evidence_data, store_path="vector_store.pkl"):
     """
@@ -16,10 +26,13 @@ def build_vector_store(evidence_data, store_path="vector_store.pkl"):
     metadatas = [{"source": item['source']} for item in evidence_data]
     
     # Create embeddings
+    model = get_model()
+    import numpy as np
     embeddings = model.encode(documents)
     embeddings = np.array(embeddings).astype('float32')
     
     # Initialize FAISS index
+    import faiss
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension)
     index.add(embeddings)
@@ -45,6 +58,8 @@ def blind_search(query, n_results=1, store_path="vector_store.pkl"):
         documents = data["documents"]
     
     # Embed query
+    model = get_model()
+    import numpy as np
     query_embedding = model.encode([query]).astype('float32')
     
     # Search

@@ -1,6 +1,6 @@
 import os
 import time
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 from vector_store import blind_search
 
@@ -12,7 +12,7 @@ api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
     print("Warning: GOOGLE_API_KEY not found in environment variables.")
 else:
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
 
 def generate_response(query, retries=3):
     """
@@ -51,8 +51,9 @@ Question:
     delay = 5
     for attempt in range(retries):
         try:
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(
+                model='gemini-2.0-flash', contents=prompt
+            )
             return response.text.strip()
         except Exception as e:
             if "429" in str(e):
@@ -105,8 +106,9 @@ def extract_timeline(retries=3):
     delay = 5
     for attempt in range(retries):
         try:
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(
+                model='gemini-2.0-flash', contents=prompt
+            )
             # Clean potential markdown wrapping
             json_text = response.text.strip().replace('```json', '').replace('```', '')
             import json
