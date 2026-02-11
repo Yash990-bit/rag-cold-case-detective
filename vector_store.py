@@ -1,64 +1,64 @@
-import chromadb
-from chromadb.utils import embedding_functions
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
 from ingest import ingest_evidence
 import os
+import pickle
 
-# Initialize the embedding function (using a small, efficient model)
-# This will download the model on the first run
-embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="all-MiniLM-L6-v2"
-)
+# Initialize the embedding model
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
-def build_vector_store(evidence_data):
+def build_vector_store(evidence_data, store_path="vector_store.pkl"):
     """
-    Creates a ChromaDB collection, embeds evidence text, 
-    and stores it along with source metadata.
+    Embeds evidence text and stores it in a FAISS index with metadata.
     """
-    # Persistent storage in the current directory
-    client = chromadb.PersistentClient(path="./chroma_db")
+    documents = [item['content'] for item in evidence_data]
+    metadatas = [{"source": item['source']} for item in evidence_data]
     
-    # Create or get collection
-    # We'll call it "cold_case_evidence"
-    collection = client.get_or_create_collection(
-        name="cold_case_evidence",
-        embedding_function=embedding_func
-    )
+    # Create embeddings
+    embeddings = model.encode(documents)
+    embeddings = np.array(embeddings).astype('float32')
     
-    # Prepare data for Chroma
-    documents = []
-    metadatas = []
-    ids = []
+    # Initialize FAISS index
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings)
     
-    for i, item in enumerate(evidence_data):
-        documents.append(item['content'])
-        metadatas.append({"source": item['source']})
-        ids.append(f"doc_{i}")
+    # Save index and metadata
+    with open(store_path, "wb") as f:
+        pickle.dump({"index": index, "metadatas": metadatas, "documents": documents}, f)
     
-    # Add to collection
-    collection.add(
-        documents=documents,
-        metadatas=metadatas,
-        ids=ids
-    )
-    
-    return collection
+    return index
 
-def blind_search(query, n_results=1):
+def blind_search(query, n_results=1, store_path="vector_store.pkl"):
     """
-    Performs a similarity search without an LLM.
+    Performs a similarity search using FAISS.
     """
-    client = chromadb.PersistentClient(path="./chroma_db")
-    collection = client.get_collection(
-        name="cold_case_evidence",
-        embedding_function=embedding_func
-    )
+    if not os.path.exists(store_path):
+        print("Error: Vector store not found. Please build it first.")
+        return {"documents": [[]], "metadatas": [[]]}
+        
+    with open(store_path, "rb") as f:
+        data = pickle.load(f)
+        index = data["index"]
+        metadatas = data["metadatas"]
+        documents = data["documents"]
     
-    results = collection.query(
-        query_texts=[query],
-        n_results=n_results
-    )
+    # Embed query
+    query_embedding = model.encode([query]).astype('float32')
     
-    return results
+    # Search
+    distances, indices = index.search(query_embedding, n_results)
+    
+    # Format results to mimic ChromaDB structure for compatibility
+    res_docs = []
+    res_metas = []
+    for idx in indices[0]:
+        if idx != -1:
+            res_docs.append(documents[idx])
+            res_metas.append(metadatas[idx])
+            
+    return {"documents": [res_docs], "metadatas": [res_metas]}
 
 if __name__ == "__main__":
     # 1. Load data from Phase 1
@@ -66,18 +66,18 @@ if __name__ == "__main__":
     data = ingest_evidence(evidence_path)
     
     # 2. Build the store
-    print("Building vector store...")
+    print("Building vector store (FAISS)...")
     build_vector_store(data)
     
     # 3. [Milestone Check] The "Blind" Search
     query = "What color was the car?"
     print(f"\n[Milestone Check] Performing Blind Search for: '{query}'")
     
-    raw_results = blind_search(query)
-    
-    # Verify the structure is what we expect
-    print("\n--- Similarity Search Result ---")
+    # Perform vector search
     results = blind_search(query)
+    
+    # Print result in requested format
+    print("\n--- Similarity Search Result ---")
     for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
         print(f"Source: {meta['source']}")
-        print(f"Text: {doc}")
+        print(f"Content: {doc.strip()}")

@@ -8,10 +8,11 @@
 
 /* Sidebar / Chat */
 .sidebar {
-  width: 400px;
+  width: 420px;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 24px;
+  box-shadow: 10px 0 30px rgba(0, 0, 0, 0.3);
 }
 
 .chat-header {
@@ -101,7 +102,9 @@
 
 .message.assistant {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .chat-input-container {
@@ -183,13 +186,13 @@
 
 .pin {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 8px;
-  height: 8px;
-  background: var(--accent-blue);
+  top: 12px;
+  right: 12px;
+  width: 10px;
+  height: 10px;
+  background: var(--accent-crimson);
   border-radius: 50%;
-  box-shadow: 0 0 5px var(--accent-blue);
+  box-shadow: 0 0 10px var(--accent-crimson);
 }
 
 /* Timeline Styles */

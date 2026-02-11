@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import chatbot
+import rag_chat
 from vector_store import blind_search
 import os
 
@@ -34,7 +34,7 @@ def health_check():
 @app.get("/timeline")
 async def get_timeline():
     try:
-        events = chatbot.extract_timeline()
+        events = rag_chat.extract_timeline()
         return {"timeline": events}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -42,8 +42,8 @@ async def get_timeline():
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     try:
-        # Get response using the logic in chatbot.py
-        response_text = chatbot.generate_response(request.message)
+        # Get response using the logic in rag_chat.py
+        response_text = rag_chat.generate_response(request.message)
         
         # Determine if it's an error message or a real response
         # If it's an error, we still want to show it in the chat

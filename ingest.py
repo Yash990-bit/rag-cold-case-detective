@@ -1,4 +1,17 @@
 import os
+import json
+
+def chunk_text(text, chunk_size=500, overlap=50):
+    """
+    Splits text into smaller chunks with overlap to maintain context.
+    """
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start += (chunk_size - overlap)
+    return chunks
 
 def ingest_evidence(directory):
     """
@@ -15,11 +28,16 @@ def ingest_evidence(directory):
         if filename.endswith(".txt"):
             file_path = os.path.join(directory, filename)
             with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                evidence_data.append({
-                    'content': content,
-                    'source': filename
-                })
+                full_content = f.read()
+                
+                # Split into chunks (Optional but recommended)
+                chunks = chunk_text(full_content)
+                
+                for chunk in chunks:
+                    evidence_data.append({
+                        'content': chunk,
+                        'source': filename
+                    })
     
     return evidence_data
 
@@ -27,9 +45,8 @@ if __name__ == "__main__":
     evidence_path = "evidence"
     loaded_data = ingest_evidence(evidence_path)
     
-    print(f"--- Loaded {len(loaded_data)} evidence files ---")
+    print(f"--- Loaded {len(loaded_data)} evidence chunks ---")
     if loaded_data:
-        # Milestone Check: Print one of the loaded data objects
+        # Milestone Check: Print one object exactly as requested
         print("\n[Milestone Check] Sample Data Object:")
-        import json
-        print(json.dumps(loaded_data[0], indent=2))
+        print(loaded_data[0])

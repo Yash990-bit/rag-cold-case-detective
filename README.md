@@ -1,0 +1,44 @@
+# RAG Cold Case Detective
+
+A Retrieval-Augmented Generation (RAG) system designed to assist detectives in solving cold cases. This system uses vector similarity search to retrieve relevant evidence from documents and an LLM to provide cited, hallucination-controlled answers.
+
+## Features
+
+- **Document Ingestion**: Loads `.txt` evidence files with automatic text chunking for better retrieval accuracy.
+- **Vector Store**: Uses FAISS and SentenceTransformers (`all-MiniLM-L6-v2`) for efficient similarity search.
+- **RAG Pipeline**: Integrates Gemini LLM with a strict detective persona prompt to ensure answers are based solely on provided evidence.
+- **Source Citation**: Every answer includes explicit citations of the source files (e.g., `witness_sarah.txt`).
+- **Hallucination Control**: The system is instructed to state whenever it lacks sufficient evidence to answer a question.
+
+## Project Structure
+
+```text
+rag-cold-case-detective/
+├── evidence/           ← Case evidence (.txt files)
+├── ingest.py           ← Loads and chunks evidence
+├── vector_store.py     ← Embeddings + FAISS similarity search
+├── rag_chat.py         ← LLM pipeline with citation logic
+└── vector_store.pkl    ← Persistent vector store
+```
+
+## Setup
+
+1. **Install Dependencies**:
+   ```bash
+   pip install faiss-cpu sentence-transformers numpy google-generativeai
+   ```
+
+2. **Set API Key**:
+   Export your Google API Key:
+   ```bash
+   export GOOGLE_API_KEY="your_api_key_here"
+   ```
+
+3. **Run the System**:
+   - To ingest and test search: `python vector_store.py`
+   - To start the RAG chat: `python rag_chat.py`
+
+## Example Query
+
+**Question**: "What evidence confirms the car color?"
+**Answer**: "According to `witness_sarah.txt` and `police_log.txt`, the vehicle involved was a silver sedan."
