@@ -41,11 +41,38 @@ async def ingest_endpoint():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/cases")
+async def get_cases():
+    """
+    Returns a list of unique cases detected in the evidence files.
+    """
+    evidence_dir = "evidence"
+    if not os.path.exists(evidence_dir):
+        return {"cases": []}
+    
+    cases = set()
+    for filename in os.listdir(evidence_dir):
+        if filename.endswith(".txt"):
+            file_path = os.path.join(evidence_dir, filename)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                first_line = f.readline().strip()
+                if first_line.startswith("Case ID:") or first_line.startswith("Case:"):
+                    cases.add(first_line.split(":")[1].strip())
+                else:
+                    cases.add("Uncategorized")
+    
+    return {"cases": sorted(list(cases))}
+
 @app.get("/timeline")
-async def get_timeline():
+async def get_timeline(case_id: str = None):
     try:
-        events = rag_chat.extract_timeline()
-        return {"timeline": events}
+        # If case_id is provided, filter or pass it to extraction logic
+        # For now, we return the full timeline or a filtered one
+        timeline = rag_chat.extract_timeline()
+        if case_id and case_id != "All":
+             # Optional: filter timeline by case_id if possible
+             pass
+        return {"timeline": timeline}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

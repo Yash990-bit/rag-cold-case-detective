@@ -1,4 +1,5 @@
 import os
+import time
 import google.generativeai as genai
 from dotenv import load_dotenv
 from vector_store import blind_search
@@ -13,9 +14,10 @@ if not api_key:
 else:
     genai.configure(api_key=api_key)
 
-def generate_response(query):
+def generate_response(query, retries=3):
     """
     Retrieves evidence and generates a response using Gemini with strict citations.
+    Includes exponential backoff retry logic for rate limits.
     """
     # 1. Retrieve top 2-3 relevant documents
     results = blind_search(query, n_results=3)
@@ -41,19 +43,28 @@ Question:
 {query}
     """
     
-    try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        if "429" in str(e):
-            return "DETECTIVE LOG: I've hit the Gemini rate limit. Please wait a minute before asking another question."
-        return f"Error: {e}"
+    delay = 5
+    for attempt in range(retries):
+        try:
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            if "429" in str(e):
+                if attempt < retries - 1:
+                    print(f"Rate limit hit. Waiting {delay} seconds (Attempt {attempt + 1})...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                else:
+                    return "DETECTIVE LOG: I've hit the Gemini rate limit multiple times. Please wait a minute before asking another question."
+            return f"Error: {e}"
 
-def extract_timeline():
+def extract_timeline(retries=3):
     """
     Reads all text files in the evidence folder and uses Gemini to 
     extract a chronological timeline of events.
+    Includes exponential backoff retry logic for rate limits.
     """
     evidence_dir = "evidence"
     all_content = []
@@ -86,16 +97,24 @@ def extract_timeline():
     Sort the events from oldest to newest. Return ONLY the JSON.
     """
     
-    try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
-        # Clean potential markdown wrapping
-        json_text = response.text.strip().replace('```json', '').replace('```', '')
-        import json
-        return json.loads(json_text)
-    except Exception as e:
-        print(f"Error extracting timeline: {e}")
-        return []
+    delay = 5
+    for attempt in range(retries):
+        try:
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            response = model.generate_content(prompt)
+            # Clean potential markdown wrapping
+            json_text = response.text.strip().replace('```json', '').replace('```', '')
+            import json
+            return json.loads(json_text)
+        except Exception as e:
+            if "429" in str(e):
+                if attempt < retries - 1:
+                    print(f"Timeline extraction hit rate limit. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+            print(f"Error extracting timeline: {e}")
+            return []
 
 def main():
     print("--- Cold Case Detective RAG Pipeline ---")
