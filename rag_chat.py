@@ -1,6 +1,6 @@
 import os
 import time
-from google import genai
+from google.genai import Client
 from dotenv import load_dotenv
 from vector_store import blind_search
 
@@ -12,7 +12,7 @@ api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
     print("Warning: GOOGLE_API_KEY not found in environment variables.")
 else:
-    client = genai.Client(api_key=api_key)
+    client = Client(api_key=api_key)
 
 def generate_response(query, retries=3):
     """

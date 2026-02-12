@@ -58,8 +58,16 @@ async def upload_file(file: UploadFile = File(...)):
         
         return {"status": "success", "message": f"File '{file.filename}' uploaded and indexed."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Upload error: {error_details}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
+@app.get("/cases")
+async def get_cases():
+    evidence_dir = "evidence"
+    if not os.path.exists(evidence_dir):
+        return {"cases": []}
     
     cases = set()
     for filename in os.listdir(evidence_dir):
