@@ -66,3 +66,4 @@ The system is designed to handle multiple documents and incidents easily:
 
 **Question**: "What evidence confirms the car color?"
 **Answer**: "According to `witness_sarah.txt` and `police_log.txt`, the vehicle involved was a silver sedan."
+# Trigger deployment
