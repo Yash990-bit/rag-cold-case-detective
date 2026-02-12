@@ -32,8 +32,8 @@ We have included a startup script to make running the project easy and robust.
     *This script will automatically clear old processes, start the Python backend, and launch the React frontend.*
 
 2.  **Access:**
-    - Frontend: [http://localhost:5173](http://localhost:5173)
-    - Backend: [http://localhost:8000](http://localhost:8000)
+    - Frontend: [http://rag-cold-case-detective.vercel.app/](https://rag-cold-case-detective.vercel.app/)
+    - Backend: [http://rag-cold-case-detective.onrender.com](https://rag-cold-case-detective.onrender.com)
 
 ## Manual Setup (If needed)
 
