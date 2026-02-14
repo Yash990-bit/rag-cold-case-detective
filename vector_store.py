@@ -17,10 +17,16 @@ def get_client():
     """
     global _client
     if _client is None:
+        from google.genai import Client
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY not found in environment variables.")
-        _client = Client(api_key=api_key)
+            print("Warning: GOOGLE_API_KEY not found in environment variables.")
+            return None
+        try:
+            _client = Client(api_key=api_key)
+        except Exception as e:
+            print(f"Error initializing Gemini Client: {e}")
+            return None
     return _client
 
 def build_vector_store(evidence_data, store_path="vector_store.pkl"):
@@ -35,7 +41,11 @@ def build_vector_store(evidence_data, store_path="vector_store.pkl"):
     
     # Create embeddings using Gemini
     client = get_client()
+    if not client:
+        print("Error: Gemini client not initialized. Skipping vector store build.")
+        return None
     import numpy as np
+
     
     # Gemini text-embedding-004 (or gemini-embedding-001)
     # We batch documents to avoid too many API calls
@@ -94,7 +104,11 @@ def blind_search(query, n_results=1, store_path="vector_store.pkl"):
     
     # Embed query using Gemini
     client = get_client()
+    if not client:
+        print("Error: Gemini client not initialized. Skipping search.")
+        return {"documents": [[]], "metadatas": [[]]}
     import numpy as np
+
     
     response = client.models.embed_content(
         model='gemini-embedding-001',

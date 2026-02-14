@@ -27,17 +27,20 @@ def ingest_evidence(directory):
     for filename in os.listdir(directory):
         if filename.endswith(".txt"):
             file_path = os.path.join(directory, filename)
-            with open(file_path, 'r', encoding='utf-8') as f:
-                full_content = f.read()
-                
-                # Split into chunks (Optional but recommended)
-                chunks = chunk_text(full_content)
-                
-                for chunk in chunks:
-                    evidence_data.append({
-                        'content': chunk,
-                        'source': filename
-                    })
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                    full_content = f.read()
+                    
+                    # Split into chunks (Optional but recommended)
+                    chunks = chunk_text(full_content)
+                    
+                    for chunk in chunks:
+                        evidence_data.append({
+                            'content': chunk,
+                            'source': filename
+                        })
+            except Exception as e:
+                print(f"Skipping {filename} due to ingest error: {e}")
     
     return evidence_data
 

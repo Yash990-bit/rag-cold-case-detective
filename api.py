@@ -87,12 +87,17 @@ async def get_cases():
     for filename in os.listdir(evidence_dir):
         if filename.endswith(".txt"):
             file_path = os.path.join(evidence_dir, filename)
-            with open(file_path, 'r', encoding='utf-8') as f:
-                first_line = f.readline().strip()
-                if first_line.startswith("Case ID:") or first_line.startswith("Case:"):
-                    cases.add(first_line.split(":")[1].strip())
-                else:
-                    cases.add("Uncategorized")
+            try:
+                # Use errors='replace' to avoid crashing on encoding issues
+                with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                    first_line = f.readline().strip()
+                    if ":" in first_line and (first_line.startswith("Case ID:") or first_line.startswith("Case:")):
+                        cases.add(first_line.split(":")[1].strip())
+                    else:
+                        cases.add("Uncategorized")
+            except Exception as e:
+                print(f"Error reading case file {filename}: {e}")
+                cases.add("Uncategorized")
     
     return {"cases": sorted(list(cases))}
 
