@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import rag_chat
@@ -39,16 +39,16 @@ def health_check():
     return {"status": "healthy", "api_key_set": bool(os.getenv("GOOGLE_API_KEY"))}
 
 @app.post("/ingest")
-async def ingest_endpoint():
+async def ingest_endpoint(background_tasks: BackgroundTasks):
     try:
-        data = ingest_evidence("evidence")
-        build_vector_store(data)
-        return {"status": "success", "message": f"Ingested {len(data)} evidence chunks"}
+        background_tasks.add_task(reindex_task)
+        return {"status": "success", "message": "Manual re-indexing started in the background."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     if not file.filename.endswith(".txt"):
          raise HTTPException(status_code=400, detail="Only .txt files are allowed")
     
@@ -57,17 +57,24 @@ async def upload_file(file: UploadFile = File(...)):
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Auto-ingest after upload
-        data = ingest_evidence("evidence")
-        build_vector_store(data)
+        # Move indexing to background to avoid timeout
+        background_tasks.add_task(reindex_task)
         
-        return {"status": "success", "message": f"File '{file.filename}' uploaded and indexed."}
+        return {"status": "success", "message": f"File '{file.filename}' uploaded. Indexing in progress..."}
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Upload error: {error_details}")
-        # Return more descriptive error for debugging if possible
         raise HTTPException(status_code=500, detail=str(e))
+
+def reindex_task():
+    try:
+        data = ingest_evidence("evidence")
+        build_vector_store(data)
+        print("Background re-indexing complete.")
+    except Exception as e:
+        print(f"Background re-indexing failed: {e}")
+
 
 
 @app.get("/cases")

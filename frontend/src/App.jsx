@@ -108,7 +108,8 @@ function App() {
           'Content-Type': 'multipart/form-data',
         },
       });
-      setMessages(prev => [...prev, { role: 'assistant', content: `Securely uploaded and indexed: ${file.name}` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Securely uploaded: ${file.name}. Detective is indexing it in the background.` }]);
+
       fetchCases();
       fetchTimeline();
     } catch (error) {

@@ -9,10 +9,19 @@ load_dotenv()
 
 # Configure the Gemini API
 api_key = os.getenv("GOOGLE_API_KEY")
+client = None
 if not api_key:
     print("Warning: GOOGLE_API_KEY not found in environment variables.")
 else:
-    client = Client(api_key=api_key)
+    try:
+        client = Client(api_key=api_key)
+    except Exception as e:
+        print(f"Error initializing Gemini Client: {e}")
+
+def get_gemini_client():
+    if client is None:
+        raise ValueError("Gemini Client not initialized. Check your GOOGLE_API_KEY.")
+    return client
 
 def generate_response(query, retries=3):
     """
@@ -51,10 +60,12 @@ Question:
     delay = 5
     for attempt in range(retries):
         try:
-            response = client.models.generate_content(
+            gemini_client = get_gemini_client()
+            response = gemini_client.models.generate_content(
                 model='gemini-2.0-flash', contents=prompt
             )
             return response.text.strip()
+
         except Exception as e:
             if "429" in str(e):
                 if attempt < retries - 1:
@@ -106,9 +117,11 @@ def extract_timeline(retries=3):
     delay = 5
     for attempt in range(retries):
         try:
-            response = client.models.generate_content(
+            gemini_client = get_gemini_client()
+            response = gemini_client.models.generate_content(
                 model='gemini-2.0-flash', contents=prompt
             )
+
             # Clean potential markdown wrapping
             json_text = response.text.strip().replace('```json', '').replace('```', '')
             import json
