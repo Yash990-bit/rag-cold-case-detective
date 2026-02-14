@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import rag_chat
 from ingest import ingest_evidence
@@ -7,11 +9,16 @@ from vector_store import build_vector_store, blind_search
 import os
 import shutil
 
+
 app = FastAPI()
 
 # Ensure evidence directory exists
 if not os.path.exists("evidence"):
     os.makedirs("evidence")
+
+print("--- DETECTIVE SERVER STARTING UP ---")
+print(f"Evidence directory: {os.path.abspath('evidence')}")
+
 
 
 
@@ -41,10 +48,13 @@ def health_check():
 @app.post("/ingest")
 async def ingest_endpoint(background_tasks: BackgroundTasks):
     try:
+        print("Manual ingest requested.")
         background_tasks.add_task(reindex_task)
         return {"status": "success", "message": "Manual re-indexing started in the background."}
     except Exception as e:
+        print(f"Ingest endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/upload")
@@ -69,11 +79,17 @@ async def upload_file(background_tasks: BackgroundTasks, file: UploadFile = File
 
 def reindex_task():
     try:
+        print("Starting background re-indexing...")
         data = ingest_evidence("evidence")
+        if not data:
+            print("No evidence found to index. Skipping vector store build.")
+            return
         build_vector_store(data)
-        print("Background re-indexing complete.")
+        print(f"Background re-indexing complete. Processed {len(data)} chunks.")
     except Exception as e:
-        print(f"Background re-indexing failed: {e}")
+        import traceback
+        print(f"CRITICAL: Background re-indexing failed: {e}")
+        print(traceback.format_exc())
 
 
 
@@ -160,7 +176,8 @@ async def get_trace(case_id: str = "All"):
                     # This adds "flavor" to the graph without complex NLP
                     words = set()
                     for word in content.split():
-                        if word[0].isupper() and len(word) > 4:
+                        if word and word[0].isupper() and len(word) > 4:
+
                             clean_word = word.strip(".,:;\"'")
                             if clean_word not in ["Case", "Date", "Time", "Report", "Evidence"]:
                                 words.add(clean_word)
@@ -203,6 +220,19 @@ async def chat_endpoint(request: ChatRequest):
             sources=[]
         )
 
+# Serve Static Files (Frontend)
+frontend_path = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+if os.path.exists(frontend_path):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_path, "assets")), name="assets")
+
+    @app.get("/{rest_of_path:path}")
+    async def serve_frontend(rest_of_path: str):
+        # Fallback to index.html for React SPA
+        return FileResponse(os.path.join(frontend_path, "index.html"))
+else:
+    print(f"Warning: Frontend dist folder not found at {frontend_path}")
+
 if __name__ == "__main__":
+
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

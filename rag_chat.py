@@ -67,7 +67,9 @@ Question:
             return response.text.strip()
 
         except Exception as e:
-            if "429" in str(e):
+            error_str = str(e)
+            print(f"Gemini Error in generate_response: {error_str}")
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
                 if attempt < retries - 1:
                     print(f"Rate limit hit. Waiting {delay} seconds (Attempt {attempt + 1})...")
                     time.sleep(delay)
@@ -75,7 +77,8 @@ Question:
                     continue
                 else:
                     return "DETECTIVE LOG: I've hit the Gemini rate limit multiple times. Please wait a minute before asking another question."
-            return f"Error: {e}"
+            return f"Error connecting to AI Detective: {error_str}"
+
 
 def extract_timeline(retries=3):
     """
@@ -91,8 +94,11 @@ def extract_timeline(retries=3):
 
     for filename in os.listdir(evidence_dir):
         if filename.endswith(".txt"):
-            with open(os.path.join(evidence_dir, filename), 'r') as f:
-                all_content.append(f"Source: {filename}\nContent: {f.read()}")
+            try:
+                with open(os.path.join(evidence_dir, filename), 'r', encoding='utf-8', errors='replace') as f:
+                    all_content.append(f"Source: {filename}\nContent: {f.read()}")
+            except Exception as e:
+                print(f"Error reading {filename} for timeline: {e}")
 
     context_text = "\n\n---\n\n".join(all_content)
     
@@ -127,14 +133,15 @@ def extract_timeline(retries=3):
             import json
             return json.loads(json_text)
         except Exception as e:
-            if "429" in str(e):
-                if attempt < retries - 1:
-                    print(f"Timeline extraction hit rate limit. Retrying in {delay}s...")
-                    time.sleep(delay)
-                    delay *= 2
-                    continue
-            print(f"Error extracting timeline: {e}")
+            error_str = str(e)
+            print(f"Gemini Error in extract_timeline: {error_str}")
+            if ("429" in error_str or "RESOURCE_EXHAUSTED" in error_str) and attempt < retries - 1:
+                print(f"Timeline extraction hit rate limit. Retrying in {delay}s...")
+                time.sleep(delay)
+                delay *= 2
+                continue
             return []
+
 
 def main():
     print("--- Cold Case Detective RAG Pipeline ---")

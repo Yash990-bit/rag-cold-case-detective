@@ -58,13 +58,23 @@ function App() {
   };
 
   const fetchTimeline = async () => {
+    // Basic caching to avoid spamming Gemini (429 errors)
+    const cacheKey = `timeline_${selectedCase}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      setTimeline(JSON.parse(cached));
+      // Still fetch in background but don't show loading/block
+    }
+
     try {
       const response = await axios.get(`${API_BASE_URL}/timeline?case_id=${selectedCase}`);
       setTimeline(response.data.timeline);
+      sessionStorage.setItem(cacheKey, JSON.stringify(response.data.timeline));
     } catch (error) {
       console.error('Error fetching timeline:', error);
     }
   };
+
 
   const fetchTrace = async () => {
     try {

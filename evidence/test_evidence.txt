@@ -1,2 +1,0 @@
-Case ID: Test Case
-This is a test evidence file.
