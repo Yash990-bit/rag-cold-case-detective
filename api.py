@@ -9,6 +9,11 @@ import shutil
 
 app = FastAPI()
 
+# Ensure evidence directory exists
+if not os.path.exists("evidence"):
+    os.makedirs("evidence")
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,7 +66,9 @@ async def upload_file(file: UploadFile = File(...)):
         import traceback
         error_details = traceback.format_exc()
         print(f"Upload error: {error_details}")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        # Return more descriptive error for debugging if possible
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/cases")
 async def get_cases():

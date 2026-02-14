@@ -1,35 +1,70 @@
 
 
-from ingest import ingest_evidence
 import os
 import pickle
+import time
+from google.genai import Client
+from dotenv import load_dotenv
 
-# Global variable for the model, initially None
-_model = None
+load_dotenv()
 
-def get_model():
+# Global variable for the client, initially None
+_client = None
+
+def get_client():
     """
-    Lazy loads the SentenceTransformer model.
+    Lazy loads the Gemini Client.
     """
-    global _model
-    if _model is None:
-        print("Loading embedding model...")
-        from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-    return _model
+    global _client
+    if _client is None:
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY not found in environment variables.")
+        _client = Client(api_key=api_key)
+    return _client
 
 def build_vector_store(evidence_data, store_path="vector_store.pkl"):
     """
-    Embeds evidence text and stores it in a FAISS index with metadata.
+    Embeds evidence text using Gemini and stores it in a FAISS index with metadata.
     """
+    if not evidence_data:
+        return None
+
     documents = [item['content'] for item in evidence_data]
     metadatas = [{"source": item['source']} for item in evidence_data]
     
-    # Create embeddings
-    model = get_model()
+    # Create embeddings using Gemini
+    client = get_client()
     import numpy as np
-    embeddings = model.encode(documents)
-    embeddings = np.array(embeddings).astype('float32')
+    
+    # Gemini text-embedding-004 (or gemini-embedding-001)
+    # We batch documents to avoid too many API calls
+    all_embeddings = []
+    batch_size = 50
+    for i in range(0, len(documents), batch_size):
+        batch = documents[i:i + batch_size]
+        
+        # Retry logic for rate limits
+        retries = 3
+        delay = 10
+        for attempt in range(retries):
+            try:
+                response = client.models.embed_content(
+                    model='gemini-embedding-001',
+                    contents=batch
+                )
+                batch_embeddings = [e.values for e in response.embeddings]
+                all_embeddings.extend(batch_embeddings)
+                break
+            except Exception as e:
+                if "429" in str(e) and attempt < retries - 1:
+                    print(f"Embedding rate limit hit. Waiting {delay}s (Attempt {attempt+1})...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                raise e
+        
+    embeddings = np.array(all_embeddings).astype('float32')
     
     # Initialize FAISS index
     import faiss
@@ -45,7 +80,7 @@ def build_vector_store(evidence_data, store_path="vector_store.pkl"):
 
 def blind_search(query, n_results=1, store_path="vector_store.pkl"):
     """
-    Performs a similarity search using FAISS.
+    Performs a similarity search using Gemini embeddings and FAISS.
     """
     if not os.path.exists(store_path):
         print("Error: Vector store not found. Please build it first.")
@@ -57,10 +92,15 @@ def blind_search(query, n_results=1, store_path="vector_store.pkl"):
         metadatas = data["metadatas"]
         documents = data["documents"]
     
-    # Embed query
-    model = get_model()
+    # Embed query using Gemini
+    client = get_client()
     import numpy as np
-    query_embedding = model.encode([query]).astype('float32')
+    
+    response = client.models.embed_content(
+        model='gemini-embedding-001',
+        contents=query
+    )
+    query_embedding = np.array([response.embeddings[0].values]).astype('float32')
     
     # Search
     distances, indices = index.search(query_embedding, n_results)
@@ -69,30 +109,34 @@ def blind_search(query, n_results=1, store_path="vector_store.pkl"):
     res_docs = []
     res_metas = []
     for idx in indices[0]:
-        if idx != -1:
+        if idx != -1 and idx < len(documents):
             res_docs.append(documents[idx])
             res_metas.append(metadatas[idx])
             
     return {"documents": [res_docs], "metadatas": [res_metas]}
 
 if __name__ == "__main__":
+    from ingest import ingest_evidence
     # 1. Load data from Phase 1
     evidence_path = "evidence"
     data = ingest_evidence(evidence_path)
     
     # 2. Build the store
-    print("Building vector store (FAISS)...")
-    build_vector_store(data)
-    
-    # 3. [Milestone Check] The "Blind" Search
-    query = "What color was the car?"
-    print(f"\n[Milestone Check] Performing Blind Search for: '{query}'")
-    
-    # Perform vector search
-    results = blind_search(query)
-    
-    # Print result in requested format
-    print("\n--- Similarity Search Result ---")
-    for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
-        print(f"Source: {meta['source']}")
-        print(f"Content: {doc.strip()}")
+    if data:
+        print("Building vector store (FAISS + Gemini)...")
+        build_vector_store(data)
+        
+        # 3. [Milestone Check] The "Blind" Search
+        query = "What color was the car?"
+        print(f"\n[Milestone Check] Performing Blind Search for: '{query}'")
+        
+        # Perform vector search
+        results = blind_search(query)
+        
+        # Print result in requested format
+        print("\n--- Similarity Search Result ---")
+        for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
+            print(f"Source: {meta['source']}")
+            print(f"Content: {doc.strip()}")
+    else:
+        print("No evidence found to index.")
