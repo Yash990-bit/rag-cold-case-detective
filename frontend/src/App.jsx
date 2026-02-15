@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Search, FileText, Pin, Cpu, MessageSquare, Clock, RefreshCw, Upload } from 'lucide-react';
+import { Send, Search, FileText, Pin, Cpu, MessageSquare, Clock, RefreshCw, Upload, Link2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './App.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -37,6 +39,10 @@ function App() {
 
     const interval = setInterval(checkHealth, 10000);
     return () => clearInterval(interval);
+  }, [selectedCase]); // Removed activeView dependency
+
+  useEffect(() => {
+    if (activeView === 'trace') fetchTrace();
   }, [selectedCase, activeView]);
 
   const fetchCases = async () => {
@@ -58,12 +64,11 @@ function App() {
   };
 
   const fetchTimeline = async () => {
-    // Basic caching to avoid spamming Gemini (429 errors)
     const cacheKey = `timeline_${selectedCase}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       setTimeline(JSON.parse(cached));
-      // Still fetch in background but don't show loading/block
+      return;
     }
 
     try {
@@ -290,7 +295,7 @@ function App() {
 
                         <h3 className="card-heading">Intelligence Segment</h3>
                         <p className="card-body">
-                          "{src.content}"
+                          {src.content}
                         </p>
 
                         <div className="card-footer">
@@ -337,10 +342,48 @@ function App() {
             <div className="trace-container glass">
               <h3 className="trace-status">Network Analysis: {graphData.nodes.length} Nodes Active</h3>
               <div className="trace-graph">
+                {/* SVG for Links - needs to be first to stay behind nodes */}
+                <svg className="trace-links-svg">
+                  {graphData.links.map((link, idx) => {
+                    const sourceIdx = graphData.nodes.findIndex(n => n.id === link.source);
+                    const targetIdx = graphData.nodes.findIndex(n => n.id === link.target);
+
+                    if (sourceIdx === -1 || targetIdx === -1) return null;
+
+                    const getPos = (index) => {
+                      const node = graphData.nodes[index];
+                      const isRoot = node.type === 'root';
+                      const angle = (index / graphData.nodes.length) * 2 * Math.PI;
+                      const x = isRoot ? 50 : 50 + (Math.cos(angle) * 35);
+                      const y = isRoot ? 50 : 50 + (Math.sin(angle) * 35);
+                      return { x, y };
+                    };
+
+                    const s = getPos(sourceIdx);
+                    const t = getPos(targetIdx);
+
+                    return (
+                      <motion.line
+                        key={`${link.source}-${link.target}-${idx}`}
+                        x1={`${s.x}%`}
+                        y1={`${s.y}%`}
+                        x2={`${t.x}%`}
+                        y2={`${t.y}%`}
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 0.4 }}
+                        transition={{ duration: 1, delay: idx * 0.05 }}
+                        className="trace-link-line"
+                      />
+                    );
+                  })}
+                  {/* Decorative circles */}
+                  <circle cx="50%" cy="50%" r="20%" className="trace-deco-ring" />
+                  <circle cx="50%" cy="50%" r="35%" className="trace-deco-ring" />
+                </svg>
+
                 {graphData.nodes.map((node, i) => {
                   const isRoot = node.type === 'root';
                   const angle = (i / graphData.nodes.length) * 2 * Math.PI;
-                  const radius = isRoot ? 0 : 200 + (Math.random() * 50);
                   const x = isRoot ? 50 : 50 + (Math.cos(angle) * 35);
                   const y = isRoot ? 50 : 50 + (Math.sin(angle) * 35);
 
@@ -353,21 +396,16 @@ function App() {
                       transition={{ delay: i * 0.05 }}
                     >
                       <div className="node-icon">
-                        {node.type === 'root' ? <Search size={16} /> : <FileText size={12} />}
+                        {node.type === 'root' ? <Search size={16} /> :
+                          node.type === 'file' ? <FileText size={12} /> : <Link2 size={12} />}
                       </div>
                       <span className="node-label">{node.label.replace('.txt', '')}</span>
                     </motion.div>
                   );
                 })}
-
-                <svg className="trace-links">
-                  {/* Decorative circles */}
-                  <circle cx="50%" cy="50%" r="20%" stroke="rgba(59, 130, 246, 0.1)" strokeWidth="1" fill="none" />
-                  <circle cx="50%" cy="50%" r="35%" stroke="rgba(59, 130, 246, 0.1)" strokeWidth="1" fill="none" />
-                </svg>
               </div>
               <div className="trace-overlay">
-                <p>RELATIONSHIP MATRIX GENERATED</p>
+                <p>RELATIONSHIP MATRIX GENERATED // SYSTEM SECURE</p>
               </div>
             </div>
           )}
@@ -401,7 +439,9 @@ function App() {
                 className={`msg-wrapper ${msg.role}`}
               >
                 <div className="msg-bubble">
-                  {msg.content}
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
                 </div>
               </motion.div>
             ))}
